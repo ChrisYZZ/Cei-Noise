@@ -1,0 +1,9 @@
+# 生成基础忽略规则
+echo "node_modules/" >> .gitignore
+echo "dist/" >> .gitignore
+echo ".vite/" >> .gitignore
+echo "venv/" >> .gitignore
+echo "__pycache__/" >> .gitignore
+echo "*.pyc" >> .gitignore
+echo ".env" >> .gitignore  # 忽略环境变量文件
+echo "*.log" >> .gitignore # 忽略日志文件
