@@ -25,12 +25,31 @@
       </option>
     </select>
   </div>
+  <!-- 添加风场参数输入div。插入在NOISE-BOX后，作为类似UI控件。 -->
+  <div class="WIND-BOX">
+    风场参数
+    <input
+      class="select-box"
+      v-model="windDirection"
+      type="number"
+      placeholder="风向 (0-360)"
+    />
+    <input
+      class="select-box"
+      v-model="windLevel"
+      type="number"
+      placeholder="风级 (1-10)"
+    />
+    <div class="btn" @click="updateWindParams">应用参数</div>
+  </div>
+  
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
 import axios from 'axios'
 // import { CesiumHeatmap } from 'cqdlzx-cesium-heatmap'
+import { WindFieldManager } from '../utils/WindField.js'; // 风场模块
 
 const btnList = ref([
   {
@@ -63,6 +82,13 @@ const btnList = ref([
     selected: false,
     type: 'noiseMap',
   },
+
+  {
+    name: '风场',
+    selected: false,
+    type: 'windField',
+  },
+  
 ])
 
 onMounted(() => {
@@ -179,6 +205,9 @@ const changeLayer = (item) => {
       break
     case 'noiseMap':
       initNoiseMap(item)
+      break
+    case 'windField':
+      toggleWindField(item)
       break
   }
 }
@@ -627,6 +656,43 @@ function addGeoJsonLayer(opiton = {}) {
     geojson: name,
   }
 }
+
+let windManager = null; // 风场实例
+
+// 新data: 参数
+const windDirection = ref(0);
+const windLevel = ref(5);
+
+// 新: 初始化风场管理器 (在onMounted中调用)
+onMounted(() => {
+  initMap();
+  initNosieList();
+  
+  // 插入到onMounted末尾，确保viewer已初始化
+  windManager = new WindFieldManager(viewer, {
+    direction: windDirection.value,
+    level: windLevel.value,
+  });
+});
+
+// 新方法: 切换风场 (匹配init*风格，处理selected)
+const toggleWindField = (item) => {
+  if (windManager) {
+    if (!item.selected) {
+      windManager.destroy(); // 或 windManager.toggle() 如果destroy不合适；但匹配其他层remove
+    } else {
+      windManager.toggle(); // 激活
+    }
+  }
+};
+
+// 新方法: 更新参数 (可从后端fetch后调用)
+const updateWindParams = () => {
+  if (windManager) {
+    windManager.updateParams(windDirection.value, windLevel.value);
+    // 可选: axios.post('/api/wind_params', { direction: windDirection.value, level: windLevel.value });
+  }
+};
 </script>
 
 <style scoped>
@@ -660,5 +726,17 @@ function addGeoJsonLayer(opiton = {}) {
 .btn-select {
   background-color: #4e6ef2;
   color: white;
+}
+
+.WIND-BOX {
+  position: absolute;
+  z-index: 99;
+  top: 90px; /* 调整位置，避免重叠NOISE-BOX */
+  left: 10px;
+  color: black;
+}
+.select-box {
+  height: 30px; /* 匹配噪声select */
+  margin-left: 5px;
 }
 </style>
