@@ -1,193 +1,114 @@
-使用Git下载整个项目后，运行deploy.sh即可自动完成安装
-强烈推荐先单独创建虚拟环境
+# 3D Map 项目文档
 
-# eVTOL噪声监测3D可视化系统
+这个项目是一个基于Vue.js和Cesium的前端3D地图应用，结合了Python FastAPI后端，用于展示3D模型、飞行路线、热力图、噪声图、风场等功能。项目采用前后端分离架构，前端通过Vite构建工具管理，后端负责API服务和静态文件（如3D Tiles资源）提供。以下我将详细介绍每个部分的功能、使用方式、修改方法，以及如何连接后端和调试。
 
-<div align="center">
-  <img src="https://img.shields.io/badge/Vue-3.5.13-green" alt="Vue">
-  <img src="https://img.shields.io/badge/Vite-6.3.1-purple" alt="Vite">
-  <img src="https://img.shields.io/badge/Cesium-Latest-blue" alt="Cesium">
-  <img src="https://img.shields.io/badge/license-MIT-yellow" alt="License">
-</div>
+## 项目概述
 
-## 📋 项目简介
+- **前端**：使用Vue 3和Cesium库实现3D地图渲染。核心组件是`Map.vue`，负责加载Cesium视图、处理图层切换（如3D Tiles、POI、热力图、噪声图、风场、六边形网格）和用户交互（如OD路径规划、风场/噪声影响模拟）。`App.vue`是入口组件，包含地图视图和图例。
+- **后端**：基于FastAPI的Python服务。主要处理路径规划API（`/plan_route`），并提供静态文件服务（如`/tiles`路径下的3D Tiles资源）。
+- **依赖**：前端依赖Cesium、axios、turf.js等；后端依赖FastAPI、Uvicorn（用于运行服务器）。
+- **数据**：项目使用GLB模型、GeoJSON文件、CZML格式的路径数据等。静态资源放在`public`和`backend/static`目录下。
+- **功能**：支持动态图层切换、实时热力图渲染、风场粒子系统模拟、噪声影响可视化、自定义OD路径规划（包括风场和噪声偏移）。
 
-基于Vue 3 + Vite + Cesium构建的3D城市噪声监测可视化系统，旨在通过无人机飞行路径模拟和噪声传播建模，实现城市环境噪声的实时监测和可视化展示。
 
-### ✨ 主要特性
+## 前端部分详解
 
-- 🏙️ **3D城市模型** - 基于3DTiles的真实城市场景
-- 🚁 **飞行路径模拟** - 无人机巡航路线可视化
-- 🌡️ **噪声热力图** - 实时噪声分布展示
-- 🎯 **多图层支持** - POI、热力图、噪声瓦片等
-- 📊 **噪声分级** - 40-80分贝六级可视化
-- 🌪️ **风场模拟**（计划中）- 粒子效果展示
+### 1. `App.vue`
+   - **功能**：这是Vue应用的根组件。它导入`Map.vue`作为地图视图，并添加一个图例盒子（legend-box），用于显示噪声或热力图的颜色梯度（例如40~50 dB对应绿色）。图例是静态的，帮助用户理解颜色含义。
+   - **使用方式**：无需手动调用；运行项目时自动渲染。图例固定在左下角。
+   - **如何更改**：如果需要调整图例颜色或范围，修改`<style scoped>`中的`.one`、`.one1`等类（这些是颜色块的CSS）。添加新图例项时，在`<template>`中复制`<div class="legend-item">`结构，并相应添加CSS类。如果想动态生成图例，可以用Vue的`v-for`替换静态项。
+   - **注意**：图例目前硬编码为噪声级别；如果用于其他图层，需要添加条件渲染（如`v-if`）。
 
-## 🚀 快速开始
+### 2. `Map.vue`
+   - **功能**：核心组件，初始化Cesium视图（在`#contanter` div中）。包括：
+     - 图层切换按钮（btnList）：控制3D模型、飞行路线、POI、热力图、噪声图、风场等显示。
+     - 噪声图选择：下拉菜单切换不同噪声路线热力图。
+     - 风场级别选择：低/中/高风力，更新粒子系统。
+     - 六边形网格选择：多选高度层（100m~400m），更新风场或噪声可视化。
+     - OD路径规划：选择或输入起点/终点，调用后端API生成路径。集成风场（偏移路径）和噪声（二元选择）影响。
+     - 其他：使用Cesium实体渲染路径、粒子系统模拟风场、热力图库渲染噪声/热力。
+   - **使用方式**：在`App.vue`中导入`<map-view>`。运行前端后，通过按钮和下拉菜单交互。自定义OD时，输入格式为"经度,纬度"（如"113.2688,23.1091"）。
+   - **如何更改**：
+     - 添加新图层：在`btnList` ref中添加对象（如`{ name: '新图层', selected: false, type: 'newType' }`），然后在`changeLayer`方法中处理逻辑（例如添加/移除Cesium实体）。
+     - 修改风场：调整`updateWindField`中的粒子系统参数（如emissionRate、forces函数中的速度分量）。
+     - 自定义路径逻辑：在`planRoute`或`loadSelectedRoute`中修改axios调用参数，或在后端响应处理中调整CZML格式。
+     - 噪声影响：在`updateNoiseForRoute`中扩展逻辑，例如基于噪声级别动态调整路径颜色或添加警报实体。
+   - **注意**：Cesium需要Ion token（已硬编码）；热力图使用`CesiumHeatmap.js`库。如果文件被截断（如truncated characters），检查完整代码确保ref声明完整。
 
-### 环境要求
+### 3. `main.js`
+   - **功能**：Vue应用启动脚本。导入`App.vue`并挂载到`#app`。
+   - **使用方式**：自动运行，无需干预。
+   - **如何更改**：如果添加全局插件或store，在这里导入并使用`app.use()`。例如集成Vue Router时添加`app.use(router)`。
 
-- Node.js >= 16.0.0
-- npm >= 7.0.0
-- 现代浏览器（Chrome/Firefox/Edge最新版）
+### 4. `index.html`
+   - **功能**：HTML入口模板。加载Cesium CSS/JS、热力图库，并定义`#app` div。
+   - **使用方式**：Vite自动处理。
+   - **如何更改**：如果更换Cesium版本，更新`<link>`和`<script>`路径。添加自定义样式时，在`<style>`中写入。
 
-### 安装步骤
+### 5. `style.css`
+   - **功能**：全局CSS，重置根元素样式，确保全屏地图。
+   - **使用方式**：自动应用。
+   - **如何更改**：调整字体、颜色方案。如果需要主题切换，添加CSS变量（如`--bg-color`）并在组件中使用。
 
-1. **克隆项目**
-```bash
-git clone https://github.com/yourusername/urban-noise-monitoring-3d.git
-cd urban-noise-monitoring-3d
-```
+### 6. `vite.config.js`
+   - **功能**：Vite构建配置。启用Vue插件，并设置代理（`/tiles`代理到后端，如`https://noise-map.com`，但注释中提到`http://localhost:3737`）。
+   - **使用方式**：运行`npm run dev`时生效。
+   - **如何更改**：代理目标改为后端URL（如`target: 'http://localhost:8000'`）。添加更多代理规则时，扩展`proxy`对象。
 
-2. **安装依赖**
-```bash
-npm install
-```
+### 7. `package.json` 和 `package-lock.json`
+   - **功能**：定义依赖（如Vue、axios、Cesium-heatmap）和脚本（如`dev`、`build`）。
+   - **使用方式**：安装依赖用`npm install`；运行用`npm run dev`。
+   - **如何更改**：添加新包时，用`npm install <package>`更新；修改脚本以自定义构建命令。
 
-3. **配置资源文件**
-   
-   由于文件大小限制，以下资源需要单独配置：
-   - 下载 [Cesium库文件](https://cesium.com/downloads/) 到 `public/Cesium/`
-   - 下载 [项目资源包](链接待补充) 包含：
-     - `GZ3dtile/` - 广州3D瓦片数据
-     - `tiles/` - 噪声瓦片数据
+## 后端部分详解
 
-4. **启动开发服务器**
-```bash
-npm run dev
-```
+### 1. `main.py`
+   - **功能**：FastAPI主应用。添加CORS支持（允许前端跨域），定义根端点（`/`），并挂载静态文件（如`/tiles`从`static/tiles`提供）。
+   - **使用方式**：运行`uvicorn main:app --reload`（需安装Uvicorn）。访问`http://localhost:8000/`测试。
+   - **如何更改**：切换静态目录时，修改`app.mount("/tiles", StaticFiles(directory="static/tiles"))`。添加新路由时，用`app.include_router()`导入其他py文件。
+   - **注意**：生产环境限制CORS origins；注释中有一个未启用的optimized_tiles挂载。
 
-5. **访问项目**
-   
-   打开浏览器访问 `http://localhost:5173`
+### 2. `plan_route.py`
+   - **功能**：路径规划路由（`/plan_route` POST）。接收OD坐标，计算简单直线路径，生成CZML格式（用于Cesium动态实体，如无人机模型和路径）。未来可集成风场/噪声逻辑。
+   - **使用方式**：前端通过axios POST发送`{origin: "lon,lat", destination: "lon,lat"}`。返回CZML JSON。
+   - **如何更改**：复杂路径计算时，导入geopy或numpy调整距离/偏移。添加风场影响：在路径生成循环中加入速度矢量偏移。噪声集成：查询噪声数据调整高度或路径。
+   - **注意**：当前是匀速直线；飞行时间至少30秒。
 
-## 📁 项目结构
+## 如何安装和运行
 
-```
-├── public/
-│   ├── Cesium/              # Cesium库文件（需单独下载）
-│   ├── GZ3dtile/            # 3D城市瓦片数据
-│   ├── tiles/               # 噪声瓦片数据
-│   ├── cesium-heatmap-es6.umd.js
-│   ├── CesiumDrone.glb     # 无人机模型
-│   └── *.geojson            # 地理数据文件
-├── src/
-│   ├── components/
-│   │   └── Map.vue          # 地图核心组件
-│   ├── App.vue              # 应用主组件
-│   ├── main.js              # 应用入口
-│   └── style.css            # 全局样式
-├── fastserver/              # Python后端（开发中）
-├── vite.config.js           # Vite配置
-└── package.json
-```
+1. **前端**：
+   - 安装依赖：`npm install`
+   - 运行开发服务器：`npm run dev`（默认http://localhost:5173）
+   - 构建生产包：`npm run build`
 
-## 🛠️ 技术栈
+2. **后端**：
+   - 创建虚拟环境：`python -m venv venv` 并激活。
+   - 安装依赖：`pip install fastapi uvicorn pydantic`
+   - 运行服务器：`uvicorn backend.main:app --reload --port 8000`
 
-### 前端
-- **Vue 3** - 渐进式JavaScript框架
-- **Vite** - 下一代前端构建工具
-- **Cesium** - 3D地球和地图可视化
-- **cesium-heatmap-es6** - Cesium热力图插件
-- **Axios** - HTTP客户端
+3. **完整运行**：先启动后端，再启动前端。确保静态资源（如GLB文件）放在`backend/static/tiles`。
 
-### 后端（计划中）
-- **FastAPI** - 现代Python Web框架
-- **Python 3.9+** - 后端开发语言
+## 如何连通后端
 
-## 📊 功能模块
+- **代理配置**：在`vite.config.js`中，`/tiles`代理到后端URL。前端axios调用时，用相对路径如`/plan_route`（Vite会代理）。
+- **直接调用**：在`Map.vue`的axios中，设置`baseURL: 'http://localhost:8000'`。如果跨域问题，检查后端CORS。
+- **测试连通**：用Postman发送POST到`/plan_route`，验证CZML返回。然后在前端控制台日志axios响应。
 
-### 已实现
-- ✅ 3D城市场景加载与展示
-- ✅ 无人机飞行路径动画
-- ✅ POI点位标注
-- ✅ 基础热力图渲染
-- ✅ 多图层切换控制
-- ✅ 噪声等级图例
+## 如何调试
 
-### 开发中
-- 🔧 FastAPI后端接口
-- 🔧 实时噪声计算算法
-- 🔧 噪声传播物理模型
-- 🔧 风场粒子效果
-- 🔧 GPU加速渲染优化
+- **前端调试**：
+  - 用Chrome DevTools：检查Vue组件状态（安装Vue Devtools扩展）。在`Map.vue`的methods中添加`console.log`追踪变量（如`originalPositions`）。
+  - Cesium问题：启用`viewer.scene.debugShowFramesPerSecond = true`显示FPS；用`Cesium.Inspector`插件调试实体。
+  - 热力图/粒子：如果不渲染，检查库导入和数据范围（e.g., heatmap bounds）。
 
-## 🔌 API文档
+- **后端调试**：
+  - 用`print`语句或logging模块输出变量（如路径positions）。
+  - FastAPI自带Swagger UI：访问`http://localhost:8000/docs`测试API。
+  - 错误处理：捕获异常，提高HTTPException detail。
 
-### 后端接口（规划中）
+- **前后端联合调试**：
+  - 监控网络请求：DevTools Network tab查看axios调用和响应。
+  - 如果路径不渲染，检查CZML格式（用JSON.stringify日志）。
+  - 性能问题：风场粒子过多时，降低emissionRate；大文件加载用浏览器缓存检查。
 
-```python
-GET  /api/flight-routes       # 获取飞行路线列表
-POST /api/flight-routes       # 创建新飞行路线
-GET  /api/noise-data          # 获取噪声数据
-POST /api/noise/calculate     # 计算噪声分布
-GET  /api/wind-field         # 获取风场数据
-```
-
-## 🚧 开发路线图
-
-- **Phase 1** (当前)
-  - [x] 基础3D场景搭建
-  - [x] 飞行路径可视化
-  - [ ] FastAPI后端框架
-
-- **Phase 2** (2025 Q1)
-  - [ ] 噪声传播算法实现
-  - [ ] 实时数据处理
-  - [ ] 数据持久化
-
-- **Phase 3** (2025 Q2)
-  - [ ] 风场效果集成
-  - [ ] GPU加速优化
-  - [ ] 多机协同展示
-
-## 🤝 贡献指南
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
-
-### 开发规范
-
-- 遵循 Vue 3 Composition API 规范
-- 使用 ESLint 进行代码检查
-- 提交信息遵循 Conventional Commits
-- 保持代码注释清晰
-
-## 📝 更新日志
-
-### [0.1.0] - 2025-06-01
-- 🎉 项目初始化
-- ✨ 实现基础3D场景
-- ✨ 添加飞行路径模拟
-- ✨ 集成热力图功能
-
-## 🐛 已知问题
-
-- 远程访问时加载速度较慢（大型3DTiles数据）
-- 热力图在数据量大时性能下降
-- 噪声数据目前为模拟数据
-
-## 📞 联系方式
-
-- 项目维护者：[Chris Guo]
-- Email：
-- Issues：[GitHub Issues](https://github.com/yourusername/urban-noise-monitoring-3d/issues)
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 🙏 致谢
-
-- [Cesium](https://cesium.com/) - 3D地球可视化引擎
-- [Vue.js](https://vuejs.org/) - 渐进式JavaScript框架
-- [Vite](https://vitejs.dev/) - 前端构建工具
-
----
-
-<div align="center">
-  <p>如果这个项目对您有帮助，请给一个 ⭐️ Star！</p>
-</div>
+如果有特定问题，欢迎在Issue中描述，我会进一步优化代码。
