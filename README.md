@@ -33,7 +33,7 @@
      - 修改风场：调整`updateWindField`中的粒子系统参数（如emissionRate、forces函数中的速度分量）。
      - 自定义路径逻辑：在`planRoute`或`loadSelectedRoute`中修改axios调用参数，或在后端响应处理中调整CZML格式。
      - 噪声影响：在`updateNoiseForRoute`中扩展逻辑，例如基于噪声级别动态调整路径颜色或添加警报实体。
-   - **注意**：Cesium需要Ion token（已硬编码）；热力图使用`CesiumHeatmap.js`库。如果文件被截断（如truncated characters），检查完整代码确保ref声明完整。
+   - **注意**：Cesium需要Ion token（如过期需要在Cesium注册替换，目前为止都是免费提供）；热力图使用`CesiumHeatmap.js`库。如果文件被截断（如truncated characters），检查完整代码确保ref声明完整。
 
 ### 3. `main.js`
    - **功能**：Vue应用启动脚本。导入`App.vue`并挂载到`#app`。
@@ -97,18 +97,16 @@
 ## 如何调试
 
 - **前端调试**：
-  - 用Chrome DevTools：检查Vue组件状态（安装Vue Devtools扩展）。在`Map.vue`的methods中添加`console.log`追踪变量（如`originalPositions`）。
-  - Cesium问题：启用`viewer.scene.debugShowFramesPerSecond = true`显示FPS；用`Cesium.Inspector`插件调试实体。
-  - 热力图/粒子：如果不渲染，检查库导入和数据范围（e.g., heatmap bounds）。
+  - 灵活使用浏览器的F12中的开发者工具，在console部分可以得到有效的前端报错信息。
+  
 
 - **后端调试**：
   - 用`print`语句或logging模块输出变量（如路径positions）。
-  - FastAPI自带Swagger UI：访问`http://localhost:8000/docs`测试API。
-  - 错误处理：捕获异常，提高HTTPException detail。
+
 
 - **前后端联合调试**：
   - 监控网络请求：DevTools Network tab查看axios调用和响应。
   - 如果路径不渲染，检查CZML格式（用JSON.stringify日志）。
   - 性能问题：风场粒子过多时，降低emissionRate；大文件加载用浏览器缓存检查。
 
-如果有特定问题，欢迎在Issue中描述，我会进一步优化代码。
+
